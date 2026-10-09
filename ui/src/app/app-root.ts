@@ -277,13 +277,8 @@ export class OpenClawApp extends OpenClawLightDomElement {
 
   private replaceFocusDashboardLocation(location: RouteLocation, source: RouteLocation): void {
     const basePath = this.context?.basePath ?? "";
-    const expected = buildControlUiFocusPath(
-      { kind: "dashboard", path: routeLocationHref(source) },
-      basePath,
-    );
-    const replacement = buildControlUiFocusPath(
-      { kind: "dashboard", path: routeLocationHref(location) },
-      basePath,
+    const [expected, replacement] = [source, location].map((target) =>
+      buildControlUiFocusPath({ kind: "dashboard", path: routeLocationHref(target) }, basePath),
     );
     const current = `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}`;
     if (!expected || !replacement || current !== expected || replacement === current) {
@@ -505,12 +500,13 @@ export class OpenClawApp extends OpenClawLightDomElement {
           ${
             terminal
               ? html`<openclaw-terminal-panel
-                  .client=${gatewayConnected ? gatewaySnapshot.client : null}
-                  .available=${available}
-                  .agentId=${owner ? normalizeAgentId(owner) : null}
-                  .themeMode=${context.theme.resolvedMode}
-                  fullscreen
-                ></openclaw-terminal-panel>`
+                    .client=${gatewayConnected ? gatewaySnapshot.client : null}
+                    .available=${available}
+                    .agentId=${owner ? normalizeAgentId(owner) : null}
+                    .themeMode=${context.theme.resolvedMode}
+                    fullscreen
+                  ></openclaw-terminal-panel>
+                  <openclaw-toast-host></openclaw-toast-host>`
               : html`<openclaw-desktop-panel
                   .client=${gatewayConnected ? gatewaySnapshot.client : null}
                   .sessions=${context.sessions}
@@ -603,7 +599,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
         <openclaw-login-gate
           .props=${{
             resourceBasePath: context.resourceBasePath,
-            mascot: context.theme.branding.mascot,
+            branding: context.theme.branding,
             connected: gatewayConnected,
             lastError: gatewaySnapshot.lastError,
             reconnectAt: gatewaySnapshot.reconnectAt,
