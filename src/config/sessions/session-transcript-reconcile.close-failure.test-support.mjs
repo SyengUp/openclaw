@@ -6,7 +6,7 @@ const { requireNodeSqlite, resolveNodeSqliteLocation } = await import("../../inf
 const sqlite = requireNodeSqlite();
 const target = workerData.databasePath && resolveNodeSqliteLocation(workerData.databasePath);
 // oxlint-disable-next-line typescript/unbound-method -- The fault wrapper calls the captured method with its database receiver.
-const close = sqlite.DatabaseSync.prototype.close;
+const { close, prepare } = sqlite.DatabaseSync.prototype;
 let failed = false;
 sqlite.DatabaseSync.prototype.close = function () {
   if (target && !failed && this.location() === target) {
@@ -18,8 +18,6 @@ sqlite.DatabaseSync.prototype.close = function () {
 if (workerData.schemaTrace) {
   const paths = new Set(workerData.schemaTrace.databasePaths.map(resolveNodeSqliteLocation));
   const statements = new WeakMap();
-  // oxlint-disable-next-line typescript/unbound-method -- The trace wrapper supplies the intercepted database receiver.
-  const prepare = sqlite.DatabaseSync.prototype.prepare;
   sqlite.DatabaseSync.prototype.prepare = function (sql) {
     const statement = prepare.call(this, sql);
     if (paths.has(this.location())) {
