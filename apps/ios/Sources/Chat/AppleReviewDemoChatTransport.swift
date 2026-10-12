@@ -857,19 +857,22 @@ private actor LocalFixtureChatStore {
               let lineCount = Int(arguments[index + 1]),
               (0...12).contains(lineCount)
         else { return nil }
+        // Keep the fixture's message contents stable across app locales.
+        let latestMarker = "SHORT_KEYBOARD_LATEST"
+        let prompt = "Short keyboard check."
         if lineCount == 0 {
             return [self.message(
                 role: "assistant",
-                text: "SHORT_KEYBOARD_LATEST",
+                text: latestMarker,
                 timestamp: timestamp,
                 transcriptMessageID: "fixture-short-latest")]
         }
         let text = (1...lineCount).map { "Synthetic line \($0)." }.joined(separator: "\n") +
-            "\nSHORT_KEYBOARD_LATEST"
+            "\n" + latestMarker
         return [
             self.message(
                 role: "user",
-                text: "Short keyboard check.",
+                text: prompt,
                 timestamp: timestamp,
                 transcriptMessageID: "fixture-short-prompt"),
             self.message(
