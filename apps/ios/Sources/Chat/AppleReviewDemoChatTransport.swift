@@ -849,6 +849,37 @@ private actor LocalFixtureChatStore {
         ]
     }
 
+    private static func shortChatMessages(fixture: LocalChatFixture, timestamp: Double) -> [OpenClawChatMessage]? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard fixture.sessionIDPrefix == "screenshot-fixture",
+              let index = arguments.firstIndex(of: "--openclaw-short-chat-lines"),
+              arguments.indices.contains(index + 1),
+              let lineCount = Int(arguments[index + 1]),
+              (0...12).contains(lineCount)
+        else { return nil }
+        if lineCount == 0 {
+            return [self.message(
+                role: "assistant",
+                text: "SHORT_KEYBOARD_LATEST",
+                timestamp: timestamp,
+                transcriptMessageID: "fixture-short-latest")]
+        }
+        let text = (1...lineCount).map { "Synthetic line \($0)." }.joined(separator: "\n") +
+            "\nSHORT_KEYBOARD_LATEST"
+        return [
+            self.message(
+                role: "user",
+                text: "Short keyboard check.",
+                timestamp: timestamp,
+                transcriptMessageID: "fixture-short-prompt"),
+            self.message(
+                role: "assistant",
+                text: text,
+                timestamp: timestamp + 1,
+                transcriptMessageID: "fixture-short-latest"),
+        ]
+    }
+
     private static func seedMessages(fixture: LocalChatFixture) -> [OpenClawChatMessage] {
         let now = Date().timeIntervalSince1970 * 1000
         if ProcessInfo.processInfo.arguments.contains("--openclaw-system-notices-fixture") {
@@ -961,6 +992,9 @@ private actor LocalFixtureChatStore {
                     timestamp: now + 4,
                     transcriptMessageID: "fixture-step-answer"),
             ]
+        }
+        if let messages = self.shortChatMessages(fixture: fixture, timestamp: now) {
+            return messages
         }
         if ProcessInfo.processInfo.arguments.contains("--openclaw-long-chat-fixture") {
             return [
