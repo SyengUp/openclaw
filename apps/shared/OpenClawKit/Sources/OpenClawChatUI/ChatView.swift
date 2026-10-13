@@ -418,6 +418,14 @@ extension OpenClawChatView {
             resolveInputModel: self.resolveComposerModel)
     }
 
+    /// The turn has ended, but a helper it started is still running.
+    @ViewBuilder
+    private var subagentWaitRow: some View {
+        if let wait = self.viewModel.subagentWait {
+            ChatSubagentWaitRow(wait: wait) { self.viewModel.switchSession(to: $0) }
+        }
+    }
+
     @ViewBuilder
     private var turnRecapRow: some View {
         if !self.showsWorkingIndicator,
@@ -583,6 +591,7 @@ extension OpenClawChatView {
                 if !self.showsComposer, !self.viewModel.hasBlockingRunActivity {
                     self.turnRecapRow
                 }
+                self.subagentWaitRow
             }
             self.messageListBottomAnchor
         }
@@ -595,6 +604,7 @@ extension OpenClawChatView {
             if !self.showsComposer, !self.viewModel.hasBlockingRunActivity {
                 self.turnRecapRow
             }
+            self.subagentWaitRow
             self.messageListBottomAnchor
         }
         #endif

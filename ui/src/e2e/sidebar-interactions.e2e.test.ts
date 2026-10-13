@@ -110,9 +110,8 @@ suite.define(() => {
 
       const actions: Array<{ selector: string; section?: string; params: Record<string, string> }> =
         [
-          { selector: ".sidebar-brand__new-thread", params: { agent: agentId } },
           {
-            selector: ".sidebar-session-toolbar .sidebar-new-session",
+            selector: ".sidebar-rail .sidebar-new-session",
             params: { agent: agentId },
           },
           {
@@ -130,11 +129,11 @@ suite.define(() => {
             section: `catalog:${catalogId}`,
             params: { agent: agentId, catalog: catalogId },
           },
-          { selector: ".shell-chrome-controls__new-thread", params: { agent: agentId } },
+          { selector: ".sidebar-rail .sidebar-new-session", params: { agent: agentId } },
         ];
       for (const [index, action] of actions.entries()) {
         if (index === actions.length - 1) {
-          await page.locator(".sidebar-brand__collapse").click();
+          await page.locator('[data-navigation-view][aria-pressed="true"]').click();
         }
         if (action.section) {
           await page
@@ -183,7 +182,7 @@ suite.define(() => {
         }
       }
 
-      await page.locator(".shell-chrome-controls__new-thread").click();
+      await page.locator(".sidebar-rail .sidebar-new-session").click();
       await waitForControlUiRoute(page, {
         routeId: "new-session",
         pathname: `${basePath}/new`,
@@ -327,7 +326,7 @@ suite.define(() => {
     const { context, page } = await openSidebarCustomizationPage(suite);
     try {
       const row = page.locator('[data-sidebar-entry="route:dashboards"]');
-      const trigger = row.getByRole("button", { name: "Reorder Dashboards", exact: true });
+      const trigger = row.getByRole("link", { name: "Dashboards", exact: true });
       const menu = await openSidebarPinMenu(page);
       const items = menu.getByRole("menuitem");
       await expect
@@ -342,7 +341,7 @@ suite.define(() => {
         .poll(() => items.first().evaluate((element) => element.matches(":focus-within")))
         .toBe(true);
       await page.keyboard.press("Escape");
-      await expect.poll(() => menu.evaluate((element) => element.hasAttribute("open"))).toBe(false);
+      await menu.waitFor({ state: "detached" });
       await expect
         .poll(() => trigger.evaluate((element) => element === document.activeElement))
         .toBe(true);
@@ -377,7 +376,7 @@ suite.define(() => {
         .poll(() => items.first().evaluate((element) => element.matches(":focus-within")))
         .toBe(true);
       await page.keyboard.press("Tab");
-      await expect.poll(() => menu.evaluate((element) => element.hasAttribute("open"))).toBe(false);
+      await menu.waitFor({ state: "detached" });
       const nextLink = page.locator('[data-sidebar-entry="route:systems"] .nav-item');
       await expect
         .poll(() => nextLink.evaluate((element) => element === document.activeElement))
