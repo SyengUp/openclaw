@@ -4,18 +4,6 @@ import OpenClawKit
 import OpenClawProtocol
 import SwiftUI
 
-private struct ChatScrollEdgeTreatment: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            // The shared canvas supplies color for the native blur. Automatic
-            // edge effects harden to black when the host inserts an opaque fill.
-            content.scrollEdgeEffectStyle(.soft, for: .vertical)
-        } else {
-            content
-        }
-    }
-}
-
 struct ChatProTab: View {
     enum GatewayStatusTone: Equatable {
         case success
@@ -39,6 +27,11 @@ struct ChatProTab: View {
     @Environment(GatewayConnectionController.self) private var gatewayController
     @AppStorage("openclaw.webchat.showAssistantTrace")
     private var showsAssistantTrace = true
+    private var chatTraceDisplayOptions: OpenClawChatDisplayOptions {
+        guard self.showsAssistantTrace else { return [] }
+        return self.viewModel?.currentSessionReasoningVisible == true ? .assistantTrace : .toolActivity
+    }
+
     private var viewModel: OpenClawChatViewModel? {
         self.appModel.chatPresentation.viewModel
     }
@@ -78,52 +71,55 @@ struct ChatProTab: View {
 
     private var content: some View {
         self.chatSurface
-            .modifier(ChatScrollEdgeTreatment())
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if let headerSidebarAction {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(action: headerSidebarAction.action) {
-                            Image(systemName: headerSidebarAction.systemName)
-                                .font(OpenClawType.subheadSemiBold)
-                                .foregroundStyle(OpenClawBrand.accent)
+            // The shared canvas supplies color for the native blur. Automatic
+            // edge effects harden to black when the host inserts an opaque fill.
+                .scrollEdgeEffectStyle(.soft, for: .vertical)
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    if let headerSidebarAction {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button(action: headerSidebarAction.action) {
+                                Image(systemName: headerSidebarAction.systemName)
+                                    .font(OpenClawType.subheadSemiBold)
+                                    .foregroundStyle(OpenClawBrand.accent)
+                            }
+                            .accessibilityLabel(headerSidebarAction.accessibilityLabel.text)
+                            .accessibilityIdentifier(headerSidebarAction
+                                .accessibilityIdentifier ?? "RootTabs.Sidebar.Show")
                         }
-                        .accessibilityLabel(headerSidebarAction.accessibilityLabel.text)
-                        .accessibilityIdentifier(headerSidebarAction.accessibilityIdentifier ?? "RootTabs.Sidebar.Show")
+                    }
+                    ToolbarItem(placement: .principal) {
+                        self.headerAgentIdentity
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        self.chatActionsMenu
                     }
                 }
-                ToolbarItem(placement: .principal) {
-                    self.headerAgentIdentity
+                .sheet(item: self.$transcriptShareItem) { item in
+                    OpenClawChatFileShareSheet(fileURL: item.fileURL)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    self.chatActionsMenu
-                }
-            }
-            .sheet(item: self.$transcriptShareItem) { item in
-                OpenClawChatFileShareSheet(fileURL: item.fileURL)
-            }
-            .sheet(isPresented: self.$showsNewSessionOptions) {
-                if let viewModel {
-                    ChatNewSessionOptionsPopover(viewModel: viewModel) {
-                        self.showsNewSessionOptions = false
+                .sheet(isPresented: self.$showsNewSessionOptions) {
+                    if let viewModel {
+                        ChatNewSessionOptionsPopover(viewModel: viewModel) {
+                            self.showsNewSessionOptions = false
+                        }
+                        .presentationDetents([.medium])
+                        .presentationDragIndicator(.visible)
                     }
-                    .presentationDetents([.medium])
-                    .presentationDragIndicator(.visible)
                 }
-            }
-            .alert(
-                String(localized: "Unable to Export Transcript"),
-                isPresented: self.$showsTranscriptExportError)
-            {
-                Button(role: .cancel) {} label: {
-                    Text("OK")
+                .alert(
+                    String(localized: "Unable to Export Transcript"),
+                    isPresented: self.$showsTranscriptExportError)
+                {
+                    Button(role: .cancel) {} label: {
+                        Text("OK")
+                            .font(OpenClawType.body)
+                    }
+                } message: {
+                    Text("OpenClaw could not prepare the Markdown file.")
                         .font(OpenClawType.body)
                 }
-            } message: {
-                Text("OpenClaw could not prepare the Markdown file.")
-                    .font(OpenClawType.body)
-            }
     }
 
     @ViewBuilder
@@ -137,7 +133,7 @@ struct ChatProTab: View {
                 drawsBackground: true,
                 showsSessionSwitcher: false,
                 userAccent: self.chatUserAccent,
-                showsAssistantTrace: self.showsAssistantTrace,
+                displayOptions: self.chatTraceDisplayOptions,
                 assistantName: self.agentDisplayName,
                 assistantAvatarText: self.agentBadge,
                 assistantAvatarTint: OpenClawBrand.accent,

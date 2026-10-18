@@ -1,6 +1,6 @@
 # iOS design system
 
-OpenClaw follows the native iOS 26 design language while keeping an iOS 18 deployment target. Use SwiftUI system structure first, Liquid Glass for interactive chrome, and quiet opaque surfaces for content.
+OpenClaw requires iOS/iPadOS 26.2 or newer and follows the native iOS 26 design language. Use SwiftUI system structure first, Liquid Glass for interactive chrome, and quiet opaque surfaces for content.
 
 ## Principles
 
@@ -37,8 +37,8 @@ Feature-local layout enums may define row heights and grid dimensions, but shoul
 - `OpenClawGlassControlGroup`: performance and morphing boundary for nearby glass controls
 - `OpenClawSidebarPalette`: fixed black-sidebar colors that remain dark in every app appearance
 - `OpenClawSidebarControlButton`, `OpenClawSidebarToolbarItem`: shared leading toolbar affordance
-- `openClawGlassButton(prominent:tint:)`: iOS 26 glass button with an iOS 18 bordered fallback
-- `OpenClawPrimaryActionButtonStyle`, `OpenClawSecondaryActionButtonStyle`, `OpenClawCloseButtonStyle`: capsule buttons built on `openClawButtonSurface`, system Liquid Glass on iOS 26 and a flat adaptive fill below
+- `openClawGlassButton(prominent:tint:)`: system Liquid Glass button
+- `OpenClawPrimaryActionButtonStyle`, `OpenClawSecondaryActionButtonStyle`, `OpenClawCloseButtonStyle`: capsule buttons built on `openClawButtonSurface` with system Liquid Glass
 - `openClawProminentButton()`: system prominent button filled with `OpenClawBrand.accentFill`
 
 ## Accent roles
@@ -49,11 +49,11 @@ Feature-local layout enums may define row heights and grid dimensions, but shoul
 
 Use `openClawGlassButton` for primary actions and navigation-adjacent controls. Use the prominent style for one primary action per region. Wrap nearby controls in `OpenClawGlassControlGroup`. Shared sidebar reveal controls are background-free header exceptions; they retain 44-point hit targets without adding separate circles around their glyphs. Chat uses the system toolbar backgrounds for its sidebar and actions controls, with assistant identity centered between them, to separate navigation from scrolling conversation content.
 
-On iOS 26 and later, standard Chat with the clean composer uses a continuous transcript beneath the native toolbar and a bottom `safeAreaBar`. Keep horizontal message gutters inside the scroll content so the existing soft scroll-edge effect spans the viewport. The system bar supplies composer clearance; do not add a second overlay or a separate keyboard inset owner. Older iOS, onboarding, composer-free views, and macOS retain the stacked layout.
+On iOS 26 and later, standard Chat with the clean composer uses a continuous transcript beneath the native toolbar and a bottom `safeAreaBar`. Keep horizontal message gutters inside the scroll content so the existing soft scroll-edge effect spans the viewport. The system bar supplies composer clearance; do not add a second overlay or a separate keyboard inset owner. Onboarding, composer-free views, full-composer layouts, and macOS retain the stacked layout.
 
 Do not place Liquid Glass behind reading content, forms, metrics, or every card in a scroll view. Excess glass weakens hierarchy, increases rendering cost, and competes with the sidebar and navigation chrome.
 
-Keep new iOS APIs behind `#available(iOS 26.0, *)`. The fallback must preserve the same label, action, tint meaning, accessibility, and approximate hit target.
+Guard APIs newer than the iOS 26.2 deployment target with availability checks. Any fallback must preserve the same label, action, tint meaning, accessibility, and approximate hit target.
 
 ## Review checklist
 
@@ -62,5 +62,5 @@ Keep new iOS APIs behind `#available(iOS 26.0, *)`. The fallback must preserve t
 - Has one obvious primary action.
 - Keeps semantic color independent from decoration.
 - Works in light and dark mode, Dynamic Type, and compact phone layouts.
-- Verifies iOS 26 appearance in the simulator and preserves the iOS 18 fallback path.
+- Verifies appearance on supported iOS versions in the simulator.
 - Adds matched before/after evidence for a visual change.

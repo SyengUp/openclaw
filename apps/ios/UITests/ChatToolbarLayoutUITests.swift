@@ -5,7 +5,6 @@ import XCTest
 final class ChatToolbarLayoutUITests: XCTestCase {
     /// Native toolbar and safe-area geometry require the hosted scroll view.
     func testTranscriptUnderlapsBarsAndKeepsControlsReachable() throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26, "Requires iOS 26")
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "Requires an iPhone")
         continueAfterFailure = false
         let app = XCUIApplication()
