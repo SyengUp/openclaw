@@ -416,6 +416,7 @@ struct ChatProTab: View {
             self.showsChatActions.toggle()
         } label: {
             Image(systemName: "ellipsis")
+                .font(.system(size: 22))
                 .foregroundStyle(OpenClawBrand.accent)
         }
         .accessibilityLabel("Chat actions")

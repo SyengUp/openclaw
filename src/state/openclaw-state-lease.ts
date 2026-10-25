@@ -175,6 +175,15 @@ async function runStateLeaseOwnerInScope<T>(
       throw leaseLost.signal.reason;
     }
   };
+  const assertOwnerCurrent = () => {
+    assertActive();
+    // Timer delivery can lag the persisted expiry; never admit an effect in that gap.
+    if (closed || confirmedExpiresAt === undefined || Date.now() >= confirmedExpiresAt) {
+      abortLost();
+      throw leaseLost.signal.reason;
+    }
+  };
+  const assertWorkerCurrent = validated.heartbeat === "worker" ? assertActive : assertOwnerCurrent;
   function stopWorker() {
     void workerHeartbeat?.stop().catch(abortLost);
     void startingHeartbeat?.stop().catch(abortLost);
@@ -345,6 +354,33 @@ async function runStateLeaseOwnerInScope<T>(
     }
     const acquiredAt = confirmedExpiresAt - validated.leaseMs;
     phase = "owned";
+    // Startup refusal still owns release of the acquired row. Bind callback authority only after startup.
+    workerOperations ??= createOpenClawStateLeaseWorkerOwner({
+      identity: { scope: identity.scope, key: identity.key, owner: identity.owner },
+      databasePath: resolveLeaseDatabasePath(validated.database),
+      sourceContext: nativeLeaseSource?.context,
+      sourceIdentity: nativeLeaseSource?.identity,
+      assertCurrent: (purpose) => {
+        if (purpose === "release") {
+          if (disposed || phase !== "draining" || !heartbeatStopped) {
+            throw new Error("State lease cleanup has not joined its heartbeat");
+          }
+          return;
+        }
+        assertWorkerCurrent();
+        if (validated.database.schemaPolicy === "existing") {
+          throw new Error("This lease mode does not support worker writes");
+        }
+        if (validated.heartbeat === "worker") {
+          if (!workerHeartbeat) {
+            abortLost();
+            throw leaseLost.signal.reason;
+          }
+          // The worker transaction rechecks durable expiry; host grants only check liveness.
+          workerHeartbeat.assertRunning();
+        }
+      },
+    });
     // Legacy native callers release synchronously on process.exit(). Async callers
     // must unwind their scope before exiting so native worker teardown can join.
     unregisterProcessExitCleanup = registerProcessExitLeaseCleanup(() => {
@@ -410,19 +446,16 @@ async function runStateLeaseOwnerInScope<T>(
     const assertOperationOwned = (transaction?: EngineConnection) => {
       assertActive();
       const params = { ...identity, database: validated.database, transaction };
-      const expiresAt = verifyLeaseOwnership(params);
       if (workerHeartbeat) {
         try {
-          workerHeartbeat.assertResponsive(expiresAt);
+          workerHeartbeat.assertRunning();
         } catch (error) {
           abortLost(error);
           throw leaseLost.signal.reason;
         }
-        // Worker acknowledgement is liveness only. Recheck persisted ownership
-        // after waiting, including inside a caller's already-held transaction.
-        assertActive();
-        verifyLeaseOwnership(params);
       }
+      // Durable ownership authorizes the effect; worker liveness adds no authority.
+      verifyLeaseOwnership(params);
     };
     const renewForHandoff = () => {
       const params = { ...identity, database: validated.database };
@@ -513,6 +546,11 @@ async function runStateLeaseOwnerInScope<T>(
       await workerOperations?.drain();
     };
 
+    const usesOwnerCurrent =
+      validated.processBound &&
+      validated.heartbeat !== "worker" &&
+      validated.database.schemaPolicy !== "existing";
+    const assertNativeCurrent = usesOwnerCurrent ? assertWorkerCurrent : assertOperationOwned;
     let result: T;
     try {
       const execution = workerOperations;
@@ -568,9 +606,12 @@ async function runStateLeaseOwnerInScope<T>(
         execution.bind(lease);
         result = await invocation.run(lease, identity);
       } else {
-        assertOperationOwned();
+        assertNativeCurrent();
         const lease: OpenClawStateLeaseContext = {
           signal: operationSignal,
+          assertCurrent: usesOwnerCurrent
+            ? assertOwnerCurrent
+            : () => operationSignal.throwIfAborted(),
           renew: renewOperation,
           assertOwned: assertOperationOwned,
           ...(workerHeartbeat
@@ -631,39 +672,7 @@ async function runStateLeaseOwnerInScope<T>(
             };
           },
         };
-        workerOperations = createOpenClawStateLeaseWorkerOwner({
-          lease,
-          identity: { scope: identity.scope, key: identity.key, owner: identity.owner },
-          databasePath: resolveLeaseDatabasePath(validated.database),
-          sourceContext: nativeLeaseSource?.context,
-          sourceIdentity: nativeLeaseSource?.identity,
-          assertCurrent: (purpose) => {
-            if (purpose === "release") {
-              if (disposed || phase !== "draining" || !heartbeatStopped) {
-                throw new Error("State lease cleanup has not joined its heartbeat");
-              }
-              return;
-            }
-            assertActive();
-            if (validated.database.schemaPolicy === "existing") {
-              throw new Error("This lease mode does not support worker writes");
-            }
-            if (validated.heartbeat === "worker") {
-              if (!workerHeartbeat) {
-                abortLost();
-                throw leaseLost.signal.reason;
-              }
-              // The worker transaction rechecks durable expiry; host grants only check liveness.
-              workerHeartbeat.assertRunning();
-              return;
-            }
-            // A delayed expiry timer must not admit another synchronous effect.
-            if (confirmedExpiresAt === undefined || Date.now() >= confirmedExpiresAt) {
-              abortLost();
-              assertActive();
-            }
-          },
-        });
+        execution.bind(lease);
         result = await invocation.run(lease, identity);
       }
       await drain();
@@ -701,7 +710,7 @@ async function runStateLeaseOwnerInScope<T>(
       await asyncOwnership?.verify();
       assertActive();
     } else {
-      assertOperationOwned();
+      assertNativeCurrent();
     }
     return result;
   };

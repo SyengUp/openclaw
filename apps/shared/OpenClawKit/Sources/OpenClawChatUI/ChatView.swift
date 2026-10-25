@@ -506,6 +506,10 @@ extension OpenClawChatView {
             .safeAreaInset(edge: .top, spacing: 0) {
                 self.messageListNoticeBanner(hasVisibleContent: hasVisibleContent)
             }
+            // Let native layout follow a growing live bubble without issuing a command per word.
+            .defaultScrollAnchor(
+                self.followTarget == .latest && !self.isUserScrolling ? .bottom : nil,
+                for: .sizeChanges)
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 let distanceFromBottom = geometry.contentSize.height - geometry.visibleRect.maxY
                 return distanceFromBottom <= Layout.liveEdgeThreshold
@@ -740,21 +744,23 @@ extension OpenClawChatView {
 
     @ViewBuilder
     private var liveAssistantContent: some View {
-        if self.showsWorkingIndicator {
-            ChatTypingIndicatorBubble(
-                style: self.style,
-                assistantName: self.assistantName,
-                assistantAvatarText: self.assistantAvatarText,
-                assistantAvatarTint: self.assistantAvatarTint,
-                showsAssistantAvatar: self.showsAssistantAvatars,
-                isClean: self.composerChrome == .clean,
-                runIdentity: self.viewModel.workingIndicatorIdentity,
-                outputTokens: self.viewModel.liveRunOutputTokens,
-                status: self.viewModel.runStartupStatus)
-                .equatable()
+        ChatRunStatusContent {
+            if self.showsWorkingIndicator {
+                ChatTypingIndicatorBubble(
+                    style: self.style,
+                    assistantName: self.assistantName,
+                    assistantAvatarText: self.assistantAvatarText,
+                    assistantAvatarTint: self.assistantAvatarTint,
+                    showsAssistantAvatar: self.showsAssistantAvatars,
+                    isClean: self.composerChrome == .clean,
+                    runIdentity: self.viewModel.workingIndicatorIdentity,
+                    outputTokens: self.viewModel.liveRunOutputTokens,
+                    status: self.viewModel.runStartupStatus)
+                    .equatable()
+            }
         }
 
-        if let text = viewModel.liveAssistantText {
+        ChatLiveAssistantText(viewModel: self.viewModel) { text in
             let preparedText = ChatStreamingAssistantText(
                 sourceText: text,
                 includesThinking: self.displayOptions.contains(.reasoning))
@@ -832,7 +838,7 @@ extension OpenClawChatView {
             bubble
             ChatMessageReactions(viewModel: self.viewModel, message: msg)
             if let outboxState = self.viewModel.outboxState(for: msg.id) {
-                ChatOutboxStatusLabel(state: outboxState)
+                ChatOutboxStatusLabel(state: outboxState, queueMode: self.viewModel.outboxQueueMode(for: msg.id))
                     .padding(.trailing, 8)
             }
             if let speech = self.speech,
@@ -983,7 +989,7 @@ extension OpenClawChatView {
             base = messages
         }
         var rows = ChatTranscriptRow.build(from: ChatTranscriptRow.mergeToolResults(in: base))
-        let runWorking = self.viewModel.hasBlockingRunActivity || self.viewModel.streamingAssistantText != nil
+        let runWorking = self.viewModel.hasBlockingRunActivity || self.viewModel.hasStreamingAssistantText
         let activeRunIDs = Set(self.viewModel.liveAdvertisedRunIDs).union(self.viewModel.liveLocalRunIDs)
         // Footers and visible rows share the merged, onboarding-trimmed input, before work moves into disclosures.
         let metadata = ChatTranscriptRow.footerMetadata(
@@ -1093,7 +1099,7 @@ extension OpenClawChatView {
     }
 
     private var hasVisibleStreamingAssistantText: Bool {
-        guard let text = self.viewModel.liveAssistantText else { return false }
+        guard let text = self.viewModel.liveAssistantTextShape else { return false }
         return AssistantTextParser.hasVisibleContent(
             in: text,
             includeThinking: self.displayOptions.contains(.reasoning))
@@ -1235,7 +1241,7 @@ extension OpenClawChatView {
         if self.viewModel.messages.isEmpty,
            !self.viewModel.hasBlockingRunActivity,
            self.viewModel.pendingToolCalls.isEmpty,
-           self.viewModel.streamingAssistantText == nil
+           !self.viewModel.hasStreamingAssistantText
         {
             self.lastTurnStartID = nil
             self.followTarget = .latest
@@ -1479,24 +1485,6 @@ private struct ChatAssistantIntroCard: View {
         .frame(maxWidth: 340, alignment: .leading)
         .padding(.top, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct ChatLoadingBubble: View {
-    var body: some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                .controlSize(.small)
-            Text("Loading chat")
-                .font(OpenClawChatTypography.captionSemiBold)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 12)
-        .background(
-            Capsule()
-                .fill(OpenClawChatTheme.subtleCard))
-        .padding(.leading, 10)
     }
 }
 
